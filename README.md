@@ -1,3 +1,3 @@
-# SDE_transport
+# SDEtransport
 devtools::install.github("jlstiles/SDEtransport")
 
