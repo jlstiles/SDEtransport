@@ -1,2 +1,3 @@
-# to install: devtools::install.github("jlstiles/SDEtransport")
+# SDE_transport
+devtools::install.github("jlstiles/SDEtransport")
 
