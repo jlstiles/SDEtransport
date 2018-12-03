@@ -5,7 +5,7 @@
 \title{SDE_tmle}
 \usage{
 SDE_tmle(data, sl, V = 10, covariates, truncate = list(lower = 1e-04, upper
-  = 0.9999), alpha = 0.05, glm_only = FALSE)
+  = 0.9999), alpha = 0.05, transport = TRUE)
 }
 \arguments{
 \item{data, }{data.frame of variables in time ordering from left to right. Make sure if using a
@@ -25,37 +25,38 @@ not functional at present}
 
 \item{alpha}{= type I error rate}
 
-\item{glm_only}{= fit using main terms glm}
+\item{transport}{if FALSE then there is no site variable considered}
 
 \item{a, }{the treatment intervention of interest, either 0 or 1}
 
 \item{a_star, }{the treatment intervention of the stochastic model for Mediator, M, either 0 or 1.}
-
-\item{CI}{confidence intervals for tmle, one step estimator, iptw estimators for stochastic
-direct and indirect effects}
-
-\item{IC}{dataframe of influence curve approximations for tmle, the one step estimator,
-and iptw estimator for both stochastic direct and indirect effects}
-
-\item{gcomp_ests}{stochastic direct and indirect effects for gcomp, IC inference is
-generally not valid here so no confidence interval offered.}
-
-\item{fluctuation_eps}{The tmle here uses the clever covariate as a weight in an intercept
-logistic regression model. This returns the intercepts for the three parameters defined as
-means, respectively, under the stochastic interventions astar = a = 0, astar = a = 1 and
-astar = 0 with a = 1.}
 }
 \value{
-a list with the following elements
+a list with the following elements:
+CI are the confidence intervals for tmle, one step estimator, iptw estimators for stochastic
+direct and indirect effects
+
+IC is a dataframe of influence curve approximations for tmle, the one step estimator,
+and iptw estimator for both stochastic direct and indirect effects
+
+gcomp_ests are tochastic direct and indirect effects for gcomp, IC inference is
+generally not valid here so no confidence interval offered.
+
+fluctuation_eps: The tmle here uses the clever covariate as a weight in an intercept
+logistic regression model. This returns the intercepts for the three parameters defined as
+means, respectively, under the stochastic interventions astar = a = 0, astar = a = 1 and
+astar = 0 with a = 1.
 }
 \description{
 computes the sequential regression, targeted maximum likelihood estimate
-for the stochastic direct effect and stochastic indirect effect when the outcome and
-mediator model are only available on site 1 (S = 1).  This is a data adaptive parameter
-as the stochastic direct effect has a model for the mediator is determined on the data for
-site 1. We note, we are working on future generalizations to allow the mediator to be present
-for both sites and also to allow specification of separate superlearners for all models that are
-fitted.
+for the stochastic direct effect and stochastic indirect effect for mediation effects
+with an intermediate confounder present when the outcome and mediator model are only available
+on site 1 (S = 1).  This is a data adaptive parameter as the stochastic direct effect has a model
+for the mediator is determined on the data for site 1. The estimates are for this parameter transported
+to another site (S=0.  We note, we are working on future generalizations to allow the mediator to be
+present for both sites and also to allow specification of separate superlearners for all models that
+are fitted.  Also computes non-transported parameter, see below.  In addition, along the way, this
+function computes the one step estimator (estimating equations based) and iptw estimators.
 }
 \examples{
 data(data_example)
@@ -82,12 +83,28 @@ sl <- Lrnr_sl$new(learners = lrnr_stack,
 # takes about 9 seconds
 time = proc.time()
 result = SDE_tmle(data_example, sl = sl, covariates = covariates, 
-                   truncate = list(lower =.0001, upper = .9999), alpha = .05, glm_only = FALSE)
+                   truncate = list(lower =.0001, upper = .9999), alpha = .05, transport = TRUE)
 proc.time() - time 
 
 result$CI
 head(result$IC)
 result$gcomp_ests
 result$fluctuation_eps
+
+# If not transporting:
+covariatesNT = list(
+                  covariates_A = c("W1", "W2"),
+                  covariates_Z = c("A","W1","W2"),
+                  covariates_M = c("Z","W1","W2"),
+                  covariates_Y = c("M","Z","W1","W2"),
+                  covariates_QZ = c("W1","W2"))
+# debug(SDE_tmleNT)
+resultNT = SDE_tmle(data_example, sl = sl, covariates = covariatesNT, 
+                    truncate = list(lower =.0001, upper = .9999), alpha = .05, transport = FALSE)
+
+resultNT$CI
+head(resultNT$IC)
+resultNT$gcomp_ests
+resultNT$fluctuation_eps
 
 }

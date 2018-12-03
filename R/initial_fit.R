@@ -1,3 +1,6 @@
+#' @title get.mediation.initdata
+#' @description helper function called within SDE_tmle to perform initial regressions for TMLE and
+#' estimating equation (one step estimator). 
 #' @export
 get.mediation.initdata = function(data, covariates, sl) {
   

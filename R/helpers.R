@@ -1,5 +1,4 @@
 
-#' @export
 gendata.SDEtransport = function(n, f_W, f_S, f_A, f_Z, f_M, f_Y) {
   W = f_W(n)
   W = as.data.frame(W)
@@ -36,7 +35,7 @@ get.stochasticM = function(gstarM_astar, Y_preds1, Y_preds0) {
 }
 
 
-#' @export
+
 gendata.SDEtransport_alt = function(n, f_W, f_A, f_Z, f_M, f_Y) {
   W = f_W(n)
   # make a pscore model

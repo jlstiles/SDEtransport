@@ -1,16 +1,22 @@
-
+#' @title mediation.step1
+#' @description helper function called within SDE_tmle to perform TMLE update for the first regression
 #' @export
-mediation.step1 = function(initdata, Y_preds, data, gstarM_astar, a) {
-  H = with(data, with(initdata, ((S == 1)*(A == a)*
-                                   ((M == 1)*gstarM_astar + (M == 0)*(1 - gstarM_astar))*
-                                   ((Z == 1)*ZS0_ps + (Z == 0)*(1 - ZS0_ps))*(1 - S_ps))/
-                        (((M == 1)*M_ps + (M == 0)*(1 - M_ps))*
-                           ((Z == 1)*Z_ps + (Z == 0)*(1 - Z_ps))*
-                           (A_ps*A + (1 - A)*(1 - A_ps))*S_ps*PS0)))
+mediation.step1 = function(initdata, Y_preds, data, gstarM_astar, a, transport) {
+  if (!transport) {
+    H = with(data, with(initdata, ((A == a)*((M == 1)*gstarM_astar + (M == 0)*(1 - gstarM_astar))/
+                                     (((M == 1)*M_ps + (M == 0)*(1 - M_ps))*(A_ps*A + (1 - A)*(1 - A_ps))))))
+  } else {
+    H = with(data, with(initdata, ((S == 1)*(A == a)*
+                                     ((M == 1)*gstarM_astar + (M == 0)*(1 - gstarM_astar))*
+                                     ((Z == 1)*ZS0_ps + (Z == 0)*(1 - ZS0_ps))*(1 - S_ps))/
+                          (((M == 1)*M_ps + (M == 0)*(1 - M_ps))*
+                             ((Z == 1)*Z_ps + (Z == 0)*(1 - Z_ps))*
+                             (A_ps*A + (1 - A)*(1 - A_ps))*S_ps*PS0)))
+  }
   
   # updates
   Qfit = try(suppressWarnings(glm(data$Y ~ 1 + offset(qlogis(Y_preds$Y_init)), family = binomial,
-                 weights = H)), silent = TRUE)
+                                  weights = H)), silent = TRUE)
   
   if (class(Qfit)[1]=="try-error") eps = 0 else eps = Qfit$coefficients
   
@@ -25,11 +31,14 @@ mediation.step1 = function(initdata, Y_preds, data, gstarM_astar, a) {
 }
 
 
+#' @title mediation.step2
+#' @description helper function called within SDE_tmle to perform TMLE update for the 2nd regression
+#' and also performs estimating equation (one step estimator)
 #' @export
 mediation.step2 = function(data, sl, Qstar_M, Qstar_Mg, covariates_QZ, Hm, A_ps, a, tmle = TRUE,
-                           EE = FALSE) {
+                           EE = FALSE, transport) {
   
-  PS0 = mean(data$S==0)
+  if (transport) PS0 = mean(data$S==0)
   df_QZ = data
   df_QZ$Qstar_Mg = Qstar_Mg
   
@@ -52,19 +61,31 @@ mediation.step2 = function(data, sl, Qstar_M, Qstar_Mg, covariates_QZ, Hm, A_ps,
   
   # compute the clever covariate and update if tmle
   if (tmle) {
-    Hz = with(data, (A == a)*(S == 0)/(A*A_ps + (1 - A)*(1 - A_ps))/PS0)  
+    if (!transport) {
+      Hz = with(data, (A == a)/(A*A_ps + (1 - A)*(1 - A_ps)))
+    } else {
+      Hz = with(data, (A == a)*(S == 0)/(A*A_ps + (1 - A)*(1 - A_ps))/PS0)  
+    }
     QZ_preds_a = pmin(pmax(QZfit$predict(task_data), .001), .999)
     # update
     QZfit_tmle = try(suppressWarnings(glm(Qstar_Mg ~ 1 + offset(qlogis(QZ_preds_a)), family = binomial,
-                         weights = Hz)), silent = TRUE)
+                                          weights = Hz)), silent = TRUE)
     if (class(QZfit_tmle)[1]=="try-error") eps2 = 0 else eps2 = QZfit_tmle$coefficients
     
     QZstar_a = plogis(qlogis(QZ_preds_a) + eps2)
-    est = mean(QZstar_a[data$S==0])
+    if (transport) {
+      est = mean(QZstar_a[data$S==0])
+    } else {
+      est = mean(QZstar_a)
+    }
     
     D_Y = with(data, Hm*(Y - Qstar_M))
     D_Z = Hz*(Qstar_Mg - QZstar_a)
+    if (transport) {
     D_W = with(data, (QZstar_a - est)*(S ==0)/PS0)
+    } else {
+      D_W = with(data, (QZstar_a - est))
+    }
     D = D_Y + D_Z + D_W
     
   } 
@@ -72,11 +93,25 @@ mediation.step2 = function(data, sl, Qstar_M, Qstar_Mg, covariates_QZ, Hm, A_ps,
   # regress if EE or mle, EE updates the estimate, mle does not
   if (EE) {
     QZstar_a = pmin(pmax(QZfit$predict(task_data), .001), .999) 
-    init_est = mean(QZstar_a[data$S==0])
+    
+    if (transport) {
+      init_est = mean(QZstar_a[data$S==0])
+    } else
+    {
+      init_est = mean(QZstar_a)
+    }
     D_Y1s = with(data, Hm*(Y - Qstar_M))
-    Hz = with(data, (A == a)*(S == 0)/(A*A_ps + (1 - A)*(1 - A_ps))/PS0)
+    if (!transport) {
+      Hz = with(data, (A == a)/(A*A_ps + (1 - A)*(1 - A_ps)))
+    } else {
+      Hz = with(data, (A == a)*(S == 0)/(A*A_ps + (1 - A)*(1 - A_ps))/PS0)  
+    }
     D_Z1s = Hz*(Qstar_Mg - QZstar_a)
-    D_W1s = with(data, (QZstar_a - init_est)*(S ==0)/PS0)
+    if (transport) { 
+      D_W1s = with(data, (QZstar_a - init_est)*(S ==0)/PS0)
+    } else {
+      D_W1s = with(data, (QZstar_a - init_est))
+    }
     D = D_Y1s + D_Z1s + D_W1s
     # update the estimate
     est = init_est + mean(D)

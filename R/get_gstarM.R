@@ -1,13 +1,24 @@
+#' @title get_gstarM
+#' @description helper function called within SDE_tmle to compute the probability of mediator M
+#' under the stochastic intervention
 #' @export
-get_gstarM  = function(data, sl, V=10, covariates) 
+get_gstarM  = function(data, sl, V=10, covariates, transport) 
 {
   nn = nrow(data)
   # for fitting Mstar
-  task_Mstar <- sl3_Task$new(
-    data = data.table::copy(data[data$S == 1,]),
-    covariates = covariates$covariates_M,
-    outcome = "M"
-  )
+  if (transport) {
+    task_Mstar <- sl3_Task$new(
+      data = data.table::copy(data[data$S == 1,]),
+      covariates = covariates$covariates_M,
+      outcome = "M"
+    )
+  } else {
+    task_Mstar <- sl3_Task$new(
+      data = data.table::copy(data),
+      covariates = covariates$covariates_M,
+      outcome = "M"
+    )
+  }
   
   # for fitting Zstar
   task_Zstar <- sl3_Task$new(
@@ -60,6 +71,8 @@ get_gstarM  = function(data, sl, V=10, covariates)
   df_ZA0$A = 0
   df_ZA1$A = 1
   
+  if (transport) df_ZA0$S = df_ZA1$S = 1
+  
   task_ZA0 <- sl3_Task$new(
     data = data.table::copy(df_ZA0),
     covariates = covariates$covariates_Z,
@@ -80,3 +93,5 @@ get_gstarM  = function(data, sl, V=10, covariates)
   
   return(list(gstarM_astar1 = gstarM_astar1, gstarM_astar0 = gstarM_astar0))
 }
+
+
